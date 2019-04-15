@@ -29,5 +29,12 @@ Now, when researching on how to accomplish kafka+python in docker, I stumbled up
 
 ![alt text](https://raw.githubusercontent.com/schwertJake/Kafka_DDOS_Detection/master/images/poc_docker.png "")
 
+## POC Testing
+Given the burst of energy one Sunday afternoon that this project was birthed from, it was an unfortunate code-now-test-later sort of development. But I'd be remised if I didn't have *some* unit testing and example case results to prove that I'm not crazy!
+
+### Unit Testing
+Unit testing happens in the 'test' folder, as one might assume, and is only done on the main streaming apps data transformations. Not nearly as much code coverage as I'd feel comfortable deploying to production but, hey, it's a POC :poop:
+
+### System Testing
 
 
