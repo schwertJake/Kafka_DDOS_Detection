@@ -6,10 +6,10 @@ from kafka import KafkaConsumer, KafkaProducer
 KAFKA_BROKER_URL = os.environ.get('KAFKA_BROKER_URL')
 FROM_TOPIC = os.environ.get('FROM_TOPIC')
 TO_TOPIC = os.environ.get("TO_TOPIC")
-WINDOW_SIZE = int(os.environ.get("WINDOW_SIZE"))*60
-THROTTLE_LIMIT = int(os.environ.get("THROTTLE_LIMIT_PER_MIN"))
+WINDOW_SIZE = os.environ.get("WINDOW_SIZE")
+THROTTLE_LIMIT = os.environ.get("THROTTLE_LIMIT_PER_MIN")
 METRIC_TOPIC = os.environ.get("METRIC_TOPIC")
-METRIC_CYCLE = int(os.environ.get("METRIC_CYCLE"))
+METRIC_CYCLE = os.environ.get("METRIC_CYCLE")
 
 sliding_window = {}
 blacklist = []
@@ -49,7 +49,7 @@ def put_sliding_window(ip_ts: dict):
     # track of count
     else:
         while sliding_window[ip]['ts'] != [] \
-                and ts - WINDOW_SIZE > sliding_window[ip]['ts'][0]:
+                and ts - (int(WINDOW_SIZE)*60) > sliding_window[ip]['ts'][0]:
             del sliding_window[ip]['ts'][0]
             sliding_window[ip]['count'] -= 1
         sliding_window[ip]['ts'].append(ts)
@@ -58,11 +58,11 @@ def put_sliding_window(ip_ts: dict):
         # If the count exceeds the THROTTLE_LIMIT,
         # return the IP address to be sent to logs.blacklist
         if sliding_window[ip]['count'] \
-                >= THROTTLE_LIMIT * (WINDOW_SIZE / 60):
+                >= int(THROTTLE_LIMIT) * int(WINDOW_SIZE):
             blacklist.append(ip)
             return {
                 "IP": ip,
-                "Req_Per_Min_Exceeded": THROTTLE_LIMIT
+                "Req_Per_Min_Exceeded": int(THROTTLE_LIMIT)
             }
 
     return None
@@ -97,7 +97,7 @@ if __name__ == '__main__':
             producer.send(TO_TOPIC, value=transaction)
 
         # Metric Aggregation
-        if count >= METRIC_CYCLE:
+        if count >= int(METRIC_CYCLE):
             metrics = {
                 "processed_per_second": count /(time.time() - start),
                 "records_processed": count,

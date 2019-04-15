@@ -8,7 +8,7 @@ KAFKA_BROKER_URL = os.environ.get('KAFKA_BROKER_URL')
 FROM_TOPIC = os.environ.get('FROM_TOPIC')
 TO_TOPIC = os.environ.get("TO_TOPIC")
 METRIC_TOPIC = os.environ.get("METRIC_TOPIC")
-METRIC_CYCLE = int(os.environ.get("METRIC_CYCLE"))
+METRIC_CYCLE = os.environ.get("METRIC_CYCLE")
 
 
 def parse_apache_log_line(log_line: str) -> dict:
@@ -30,18 +30,29 @@ def parse_apache_log_line(log_line: str) -> dict:
     :param log_line: str in apache log format
     :return: dict of form above
     """
-    split_ws = log_line.split(" ")
-    return {
-        "IP": split_ws[0],
-        "Time": get_time_epoch(split_ws[3][1:], split_ws[4][:-1]),
-        "Request_Method": split_ws[5][1:],
-        "Request_Resource": split_ws[6],
-        "Request_Protocol": split_ws[7][:-1],
-        "Status_Code": int(split_ws[8]),
-        "Payload_Size": int(split_ws[9]),
-        "Referer": split_ws[10].replace("\"", ""),
-        "User_Agent": " ".join(split_ws[11:-1]).replace("\"", "")
-    }
+    try:
+        split_ws = log_line.split(" ")
+        parsed_dict = {
+            "IP": split_ws[0],
+            "Time": get_time_epoch(split_ws[3][1:], split_ws[4][:-1]),
+            "Request_Method": split_ws[5][1:],
+            "Request_Resource": split_ws[6],
+            "Request_Protocol": split_ws[7][:-1],
+            "Status_Code": int(split_ws[8]),
+            "Payload_Size": int(split_ws[9]),
+            "Referer": split_ws[10].replace("\"", ""),
+            "User_Agent": " ".join(split_ws[11:]).replace("\"", "")
+        }
+        return parsed_dict
+    except ValueError:
+        print("FOUND INCORRECT LOG TYPE")
+        return {}
+    except IndexError:
+        print("FOUND INCORRECT LOG STRING")
+        return {}
+    except AttributeError:
+        print("STRING IS TOO SHORT")
+        return {}
 
 
 def get_time_epoch(time_stamp: str, time_zone: str) -> float:
@@ -53,7 +64,11 @@ def get_time_epoch(time_stamp: str, time_zone: str) -> float:
     :param time_zone: time zone (str) in apache log format
     :return: time (epoch) as int
     """
-    d = datetime.strptime(time_stamp+" "+time_zone, "%d/%b/%Y:%H:%M:%S %z")
+    try:
+        d = datetime.strptime(time_stamp+" "+time_zone, "%d/%b/%Y:%H:%M:%S %z")
+    except ValueError:
+        print("INCORRECT TIME FORMAT IN LOG STRING")
+        return 0
     return int(d.timestamp())
 
 
@@ -70,6 +85,7 @@ if __name__ == '__main__':
     )
 
     count = 0
+    errors = 0
     start = time.time()
 
     for message in consumer:
@@ -80,15 +96,20 @@ if __name__ == '__main__':
         # Transform and Publish Data
         transformed_data: dict = \
             parse_apache_log_line(message.value["line"])
-        producer.send(TO_TOPIC, value=transformed_data)
+        if transformed_data != {} and transformed_data["ts"] != 0:
+            producer.send(TO_TOPIC, value=transformed_data)
+        else:
+            errors += 1
 
         # Metric Aggregation
-        if count >= METRIC_CYCLE:
+        if count >= int(METRIC_CYCLE):
             metrics = {
                 "processed_per_second": count/(time.time() - start),
                 "records_processed": count,
+                "errors": errors,
                 "end_ts": time.time()
             }
             producer.send(METRIC_TOPIC, value=metrics)
             count = 0
+            errors = 0
             start = time.time()

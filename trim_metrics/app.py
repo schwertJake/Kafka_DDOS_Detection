@@ -8,8 +8,10 @@ METRIC_TOPIC = os.environ.get("METRIC_TOPIC")
 ingest_metric_agg = {
     "processed_per_second": [],
     "records_processed": [],
+    "errors": [],
     "end_ts": []
 }
+
 
 def aggregate_stats(agg_dict: dict):
     """
@@ -31,9 +33,11 @@ def aggregate_stats(agg_dict: dict):
     return {
         "Records_Processed": sum(agg_dict["records_processed"]),
         "Avg_Records_Per_Second":
-            sum(agg_dict["processed_per_second"])/
-             len(agg_dict["processed_per_second"]),
+            sum(agg_dict["processed_per_second"]) /
+            len(agg_dict["processed_per_second"]),
+        "Errors": sum(agg_dict["errors"])
     }
+
 
 if __name__ == '__main__':
     consumer = KafkaConsumer(
@@ -56,5 +60,3 @@ if __name__ == '__main__':
     for key, val in result.items():
         print(key, ":", val)
     print()
-
-

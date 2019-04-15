@@ -8,7 +8,8 @@ TRANSACTIONS_TOPIC = os.environ.get('TRANSACTIONS_TOPIC')
 METRIC_TOPIC = os.environ.get("METRIC_TOPIC")
 METRIC_CYCLE = int(os.environ.get("METRIC_CYCLE"))
 
-if __name__ == '__main__':
+
+def run():
     producer = KafkaProducer(
         bootstrap_servers=KAFKA_BROKER_URL,
         value_serializer=lambda value: json.dumps(value).encode(),
@@ -47,3 +48,6 @@ if __name__ == '__main__':
         "end_ts": time.time()
     }
     producer.send(METRIC_TOPIC, value=metrics)
+
+if __name__ == '__main__':
+    run()

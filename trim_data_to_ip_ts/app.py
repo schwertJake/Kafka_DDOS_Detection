@@ -7,7 +7,7 @@ KAFKA_BROKER_URL = os.environ.get('KAFKA_BROKER_URL')
 FROM_TOPIC = os.environ.get('FROM_TOPIC')
 TO_TOPIC = os.environ.get("TO_TOPIC")
 METRIC_TOPIC = os.environ.get("METRIC_TOPIC")
-METRIC_CYCLE = int(os.environ.get("METRIC_CYCLE"))
+METRIC_CYCLE = os.environ.get("METRIC_CYCLE")
 
 
 def trim_to_ip_ts(parsed_data: dict) -> dict:
@@ -19,10 +19,14 @@ def trim_to_ip_ts(parsed_data: dict) -> dict:
     :param parsed_data: full dict of log line data
     :return: dict of form {"IP": str, "TS": ts}
     """
-    return {
-        "IP": parsed_data['IP'],
-        "TS": parsed_data['Time']
-    }
+    try:
+        trimmed_dict = {
+            "IP": parsed_data['IP'],
+            "TS": parsed_data['Time']
+        }
+        return trimmed_dict
+    except KeyError:
+        return {}
 
 
 if __name__ == '__main__':
@@ -39,6 +43,7 @@ if __name__ == '__main__':
 
     # Metric initialization
     count = 0
+    errors = 0
     start = time.time()
 
     for message in consumer:
@@ -48,13 +53,17 @@ if __name__ == '__main__':
 
         # Transform and Publish Data
         transformed_data: dict = trim_to_ip_ts(message.value)
-        producer.send(TO_TOPIC, value=transformed_data)
+        if transformed_data != {}:
+            producer.send(TO_TOPIC, value=transformed_data)
+        else:
+            errors += 1
 
         # Metric Aggregation
-        if count >= METRIC_CYCLE:
+        if count >= int(METRIC_CYCLE):
             metrics = {
                 "processed_per_second": count / (time.time() - start),
                 "records_processed": count,
+                "errors": errors,
                 "end_ts": time.time()
             }
             producer.send(METRIC_TOPIC, value=metrics)
