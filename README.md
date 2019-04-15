@@ -29,12 +29,32 @@ Now, when researching on how to accomplish kafka+python in docker, I stumbled up
 
 ![alt text](https://raw.githubusercontent.com/schwertJake/Kafka_DDOS_Detection/master/images/poc_docker.png "")
 
+## POC Execution
+Because this is built in docker, execution is pretty darn simple so long as you have docker on your machine, basically:
+1. Clone this repository to a directory of your choosing. 
+2. In one terminal window, run 'docker-compose -f docker-compose.kafka.yml up' and it will download the confluence docker images and start things up. Lots of scrolling text and then it will stop and is ready to use
+3. In another terminal window, run 'docker-compose up' (make sure you're in the root directory of this project). That will start the sample log ingestion and streamings apps that follow.
+4. Kick back, wait a minute or two, and check out the results (go to System Testing to see what that looks like).
+
 ## POC Testing
 Given the burst of energy one Sunday afternoon that this project was birthed from, it was an unfortunate code-now-test-later sort of development. But I'd be remised if I didn't have *some* unit testing and example case results to prove that I'm not crazy!
 
 ### Unit Testing
-Unit testing happens in the 'test' folder, as one might assume, and is only done on the main streaming apps data transformations. Not nearly as much code coverage as I'd feel comfortable deploying to production but, hey, it's a POC :poop:
+Unit testing happens in the 'test' folder, as one might assume, and is only done on the main streaming apps data transformations. Not nearly as much code coverage as I'd feel comfortable deploying to production but hey, it's a POC :poop:
 
 ### System Testing
+So for starters, a sample log file from an apache web server is in '/apache_server_log_producer'. Its about a minute of logs, with ~160,000 unique HTTP requests. Before I dove into Kafka, I wanted to see which IP addresses belonged to the bad guys. With some simple data transformations in 'log_parser_playground.py' and my the plotly library, it becomes quickly apparent:
 
+![alt text](https://raw.githubusercontent.com/schwertJake/Kafka_DDOS_Detection/master/images/Number%20of%20Users%20and%20their%20Frequency%20of%20HTTP%20request.png "")
 
+So the answer we're looking for is 991 unique IP addresses. Executing the program results in the follow output:
+
+![alt text](https://raw.githubusercontent.com/schwertJake/Kafka_DDOS_Detection/master/images/cli_output_metrics_2gbRam_2cpu.PNG "")
+
+The blacklisted IP addresses will be written to a file called 'blacklist.txt' with the timestamp of when they were found. That file resides in the docker image, but I pulled it out as an example, find it [here](https://github.com/schwertJake/Kafka_DDOS_Detection/blob/master/sample_blacklist.txt)
+
+The metrics (processing roughly 1400 logs per second at each streaming app) are from a docker VM with 2GB Ram and 2 CPUs. Out of curiousity, I scaled it vertically to 4GB Ram, 4CPU and got the following result:
+
+![alt text](https://raw.githubusercontent.com/schwertJake/Kafka_DDOS_Detection/master/images/cli_output_metrics_4gbRam_4cpu.PNG "")
+
+Which garnered a nice 10% bump up to 1650 messages per second.
