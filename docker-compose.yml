@@ -1,0 +1,68 @@
+version: '3'
+
+services:
+  ingest:
+      build: ./apache_server_log_producer
+      environment:
+        KAFKA_BROKER_URL: broker:9092
+        TRANSACTIONS_TOPIC: logs.raw
+        METRIC_TOPIC: metrics.ingest
+        METRIC_CYCLE: 10000
+
+  ingest_metrics:
+      build: ./ingest_metrics
+      environment:
+        KAFKA_BROKER_URL: broker:9092
+        METRIC_TOPIC: metrics.ingest
+
+  parse:
+      build: ./parse_log_into_json
+      environment:
+        KAFKA_BROKER_URL: broker:9092
+        FROM_TOPIC: logs.raw
+        TO_TOPIC: logs.parse
+        METRIC_TOPIC: metrics.parse
+        METRIC_CYCLE: 10000
+
+  parse_metrics:
+      build: ./parse_metrics
+      environment:
+        KAFKA_BROKER_URL: broker:9092
+        METRIC_TOPIC: metrics.parse
+
+  trim:
+      build: ./trim_data_to_ip_ts
+      environment:
+        KAFKA_BROKER_URL: broker:9092
+        FROM_TOPIC: logs.parse
+        TO_TOPIC: logs.trim
+        METRIC_TOPIC: metrics.trim
+        METRIC_CYCLE: 10000
+
+  trim_metrics:
+      build: ./trim_metrics
+      environment:
+        KAFKA_BROKER_URL: broker:9092
+        METRIC_TOPIC: metrics.trim
+
+  sliding_window:
+      build: ./sliding_window_ip_count
+      environment:
+        KAFKA_BROKER_URL: broker:9092
+        FROM_TOPIC: logs.trim
+        TO_TOPIC: logs.blacklist
+        WINDOW_SIZE: 1
+        THROTTLE_LIMIT_PER_MIN: 10
+        METRIC_TOPIC: metrics.sliding
+        METRIC_CYCLE: 10000
+
+  sliding_metrics:
+      build: ./sliding_metrics
+      environment:
+        KAFKA_BROKER_URL: broker:9092
+        METRIC_TOPIC: metrics.sliding
+
+networks:
+  default:
+    external:
+      name: kafka-network
