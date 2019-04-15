@@ -49,7 +49,6 @@ if __name__ == '__main__':
     )
 
     # Consumer metrics from kafka topic
-    # and add to metric_agg dict of lists
     for message in consumer:
         for key, val in message.value.items():
             metric_agg[key].append(val)

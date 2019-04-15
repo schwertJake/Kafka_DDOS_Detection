@@ -30,6 +30,7 @@ if __name__ == '__main__':
         FROM_TOPIC,
         bootstrap_servers=KAFKA_BROKER_URL,
         value_deserializer=lambda value: json.loads(value),
+        consumer_timeout_ms=5000
     )
     producer = KafkaProducer(
         bootstrap_servers=KAFKA_BROKER_URL,
@@ -50,7 +51,7 @@ if __name__ == '__main__':
         producer.send(TO_TOPIC, value=transformed_data)
 
         # Metric Aggregation
-        if count >= 1000:
+        if count >= METRIC_CYCLE:
             metrics = {
                 "processed_per_second": count / (time.time() - start),
                 "records_processed": count,

@@ -29,16 +29,16 @@ if __name__ == '__main__':
             transaction: dict = {'line': line}
             producer.send(TRANSACTIONS_TOPIC, value=transaction)
 
-        # Metric Aggregation:
-        if count >= METRIC_CYCLE:
-            metrics = {
-                "processed_per_second": count / (time.time() - start),
-                "records_processed": count,
-                "end_ts": time.time()
-            }
-            producer.send(METRIC_TOPIC, value=metrics)
-            count = 0
-            start = time.time()
+            # Metric Aggregation:
+            if count >= METRIC_CYCLE:
+                metrics = {
+                    "processed_per_second": count / (time.time() - start),
+                    "records_processed": count,
+                    "end_ts": time.time()
+                }
+                producer.send(METRIC_TOPIC, value=metrics)
+                count = 0
+                start = time.time()
 
     # Final Metric Aggregation:
     metrics = {

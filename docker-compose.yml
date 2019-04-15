@@ -7,7 +7,7 @@ services:
         KAFKA_BROKER_URL: broker:9092
         TRANSACTIONS_TOPIC: logs.raw
         METRIC_TOPIC: metrics.ingest
-        METRIC_CYCLE: 10000
+        METRIC_CYCLE: 1000
 
   ingest_metrics:
       build: ./ingest_metrics
@@ -22,7 +22,7 @@ services:
         FROM_TOPIC: logs.raw
         TO_TOPIC: logs.parse
         METRIC_TOPIC: metrics.parse
-        METRIC_CYCLE: 10000
+        METRIC_CYCLE: 1000
 
   parse_metrics:
       build: ./parse_metrics
@@ -37,7 +37,7 @@ services:
         FROM_TOPIC: logs.parse
         TO_TOPIC: logs.trim
         METRIC_TOPIC: metrics.trim
-        METRIC_CYCLE: 10000
+        METRIC_CYCLE: 1000
 
   trim_metrics:
       build: ./trim_metrics
@@ -54,13 +54,19 @@ services:
         WINDOW_SIZE: 1
         THROTTLE_LIMIT_PER_MIN: 10
         METRIC_TOPIC: metrics.sliding
-        METRIC_CYCLE: 10000
+        METRIC_CYCLE: 1000
 
   sliding_metrics:
       build: ./sliding_metrics
       environment:
         KAFKA_BROKER_URL: broker:9092
         METRIC_TOPIC: metrics.sliding
+
+  blacklist_logging:
+      build: ./blacklist_logging
+      environment:
+        KAFKA_BROKER_URL: broker:9092
+        FROM_TOPIC: logs.blacklist
 
 networks:
   default:
