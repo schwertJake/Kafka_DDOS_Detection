@@ -96,7 +96,7 @@ if __name__ == '__main__':
         # Transform and Publish Data
         transformed_data: dict = \
             parse_apache_log_line(message.value["line"])
-        if transformed_data != {} and transformed_data["ts"] != 0:
+        if transformed_data != {} and transformed_data["Time"] != 0:
             producer.send(TO_TOPIC, value=transformed_data)
         else:
             errors += 1
