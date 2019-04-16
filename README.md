@@ -53,8 +53,36 @@ So the answer we're looking for is 991 unique IP addresses. Executing the progra
 
 The blacklisted IP addresses will be written to a file called 'blacklist.txt' with the timestamp of when they were found. That file resides in the docker image, but I pulled it out as an example, find it [here](https://github.com/schwertJake/Kafka_DDOS_Detection/blob/master/sample_blacklist.txt)
 
+__And indeed, we found all 991 malicious IPs and wrote them to logs.blacklist__
+
 The metrics (processing roughly 1400 logs per second at each streaming app) are from a docker VM with 2GB Ram and 2 CPUs. Out of curiousity, I scaled it vertically to 4GB Ram, 4CPU and got the following result:
 
 ![alt text](https://raw.githubusercontent.com/schwertJake/Kafka_DDOS_Detection/master/images/cli_output_metrics_4gbRam_4cpu.PNG "")
 
 Which garnered a nice 10% bump up to 1650 messages per second.
+
+## Production Changes
+So, the POC worked, how would I change this for production?
+
+I'm glad you asked. Among other small tweaks, mostly I would add persistance via a documentDB as shown in the below architecture:
+
+![alt text](https://raw.githubusercontent.com/schwertJake/Kafka_DDOS_Detection/master/images/production_architecture.png "")
+
+If you hadn't guessed, the blue objects are for data persistance.
+Essentially, I would keep the existing architecture but add MongoDB (or your documentDB of choice) into the mix to persist the following things:
+* Metric / Metadata of streaming app performance
+* Full log file JSON documents
+* Blacklisted IPs (though because this data is so simple, a KV database would work fine too, if you feel like standing up a second database)
+
+## Scaling
+All of the tech is already built to be scalable, yay! No SQL servers to migrate or any craziness like that. Nevertheless, scaleing to hundreds of thousands of visitors on multiple nodes poses some interesting problems.
+
+My ramblings about scaling the system, in no particular order and at a high level, are below:
+* Horizontally scale (obviously) the database(s) and kafka. Python streaming apps / microservices can be duplicated per node or as needed. Some testing is definitely required to find performance bottlenecks.
+*  Kafka needs to be parralellized. This can be done with partitions. An important restriction in doing this is that kafka assigns a single partition to one consumer thread (within a group), so those numbers must be balanced. An article I really enjoyed about parralellism in Kafka that talks more about the subject is [here](https://www.confluent.io/blog/how-choose-number-topics-partitions-kafka-cluster)
+* One potential concern of mine is that the sliding window which finds malicious IP resides completely in the python streaming app and thus in memory. So memory of a node may become a concern if a single node has hundreds of thousands of logs and a long time window. Fixes to this would be keep the time window short - 30s to a minute, or just scale across more nodes to use more memory.
+* The data persistance side of things should scale fine horizontally - it's a write heavy system, so consistancy can take a back burner to volume of data. MongoDB can [shard](https://docs.mongodb.com/manual/sharding) - one of the important considerations in doing so is the sharding key. Given the uniqueness and diferences of IP address string, I'd be inclined to use them as the shard key (perhaps hash them as well).
+
+## Lessons Learned
+
+ 
