@@ -3,7 +3,7 @@
 This is a Proof of Concept software for detecting DDOS attacks on an apache web server via real time log analysis. Using Kafka as a messaging platform and python microservices as streaming applications, this system is able to effectively find malicious IP address in realtime.
 
 ## POC Architecture
-Because this was coded up in very short time, the POC architectuere is stripped back version of what I would suggest for a production system (more on that later). The data pipeline is diagrammed below:
+Because this was coded up in very short time, the POC architecture is a stripped back version of what I would suggest for a production system (more on that later). The data pipeline is diagrammed below:
 
 ![alt text](https://raw.githubusercontent.com/schwertJake/Kafka_DDOS_Detection/master/images/poc_architecture.png "")
 
@@ -17,15 +17,15 @@ To better explain that messy diagram, objects are color coded as follows
 
 So at a top level, the following happens:
 
-1. Raw log line from apache web server (or example document in this case) enters kafka at the logs.raw topic
-2. That raw log (one long string) is parsed into a useful JSON object containing the IP, Timestamp, Resource Requested, and lots of other interesting information, and is publised to the logs.parse kafka topic
-3. The parsed logs now enter the DDOS detection specific stream applications. The first one trim's down that JSON document to just the IP address and the timestamp, then publishes it to the logs.trim kafka topic.
-4. These messages containing just the IP address and timestamp are entered into a sliding window where only timestamps in the last <user defined time> exist. If the count of timestamps within the window are greater than <user defined threshold>, the IP is considered overactive and malicious, and is published to a logs.blacklist topic for further use
+1. A raw log line from apache web server (or example document in this case) enters kafka at the `logs.raw` topic
+2. That raw log (one long string) is parsed into a useful JSON object containing the IP, Timestamp, Resource Requested, and lots of other interesting information, and is publised to the `logs.parse` kafka topic
+3. The parsed logs now enter the DDOS detection specific stream applications. The first one trim's down that JSON document to just the IP address and the timestamp, then publishes it to the `logs.trim` kafka topic.
+4. These messages containing just the IP address and timestamp are entered into a sliding window where only timestamps in the last <user defined time> exist. If the count of timestamps within the window are greater than <user defined threshold>, the IP is considered overactive and malicious, and is published to a `logs.blacklist` topic for further use
 
 ## POC Deployment
 My growing favorite way to develop projects like this is with docker. Running in a controlled environment on my local machine is simple, and I could deploy it to the cloud with minimum headache (famous last words, right?) if I needed to. So, of course, that is what I used.
 
-Now, when researching on how to accomplish kafka+python in docker, I stumbled upon [this very helpful article from CodeSail](https://blog.florimondmanca.com/building-a-streaming-fraud-detection-system-with-kafka-and-python) and liked the idea of deploying kafka as a seperate service from the streaming apps. Therefore, Kafka (and Zookeeper) are assembled in 'docker-compose.kafka.yaml', and must be run seperately and in advance of the python streaming apps, which reside in 'docker-compose.yaml'. This makes for a really nice decoupling of the messaging engine from the streaming apps. The docker architecture is simply illustrated below:
+Now, when researching on how to accomplish kafka+python in docker, I stumbled upon [this very helpful article from CodeSail](https://blog.florimondmanca.com/building-a-streaming-fraud-detection-system-with-kafka-and-python) and liked the idea of deploying kafka as a seperate service from the streaming apps to closer mimick production. Therefore, Kafka (and Zookeeper) are assembled in 'docker-compose.kafka.yaml', and must be run seperately and in advance of the python streaming apps, which reside in 'docker-compose.yaml'. This makes for a really nice decoupling of the messaging service from the streaming apps. The docker architecture is simply illustrated below:
 
 ![alt text](https://raw.githubusercontent.com/schwertJake/Kafka_DDOS_Detection/master/images/poc_docker.png "")
 
@@ -40,10 +40,10 @@ Because this is built in docker, execution is pretty darn simple so long as you 
 Given the burst of energy one Sunday afternoon that this project was birthed from, it was an unfortunate code-now-test-later sort of development. But I'd be remised if I didn't have *some* unit testing and example case results to prove that I'm not crazy!
 
 ### Unit Testing
-Unit testing happens in the 'test' folder, as one might assume, and is only done on the main streaming apps data transformations. Not nearly as much code coverage as I'd feel comfortable deploying to production but hey, it's a POC :poop:
+Unit testing happens in the 'test' folder, as one might assume. It is only done on the main streaming app's data transformations. Not nearly as much code coverage as I'd like to feel comfortable deploying to production with but hey, it's a POC :poop:
 
 ### System Testing
-So for starters, a sample log file from an apache web server is in '/apache_server_log_producer'. Its about a minute of logs, with ~160,000 unique HTTP requests. Before I dove into Kafka, I wanted to see which IP addresses belonged to the bad guys. With some simple data transformations in 'log_parser_playground.py' and my the plotly library, it becomes quickly apparent:
+So for starters, a sample log file from an apache web server is in '/apache_server_log_producer'. Its about a minute of logs, with ~160,000 unique HTTP requests. Before I dove into Kafka, I wanted to see which IP addresses belonged to the bad guys. With some simple data transformations in 'log_parser_playground.py' and the plotly library, it becomes quickly apparent:
 
 ![alt text](https://raw.githubusercontent.com/schwertJake/Kafka_DDOS_Detection/master/images/Number%20of%20Users%20and%20their%20Frequency%20of%20HTTP%20request.png "")
 
@@ -80,8 +80,8 @@ All of the tech is already built to be scalable, yay! No SQL servers to migrate 
 My ramblings about scaling the system, in no particular order and at a high level, are below:
 * Horizontally scale (obviously) the database(s) and kafka. Python streaming apps / microservices can be duplicated per node or as needed. Some testing is definitely required to find performance bottlenecks.
 *  Kafka needs to be parralellized. This can be done with partitions. An important restriction in doing this is that kafka assigns a single partition to one consumer thread (within a group), so those numbers must be balanced. An article I really enjoyed about parralellism in Kafka that talks more about the subject is [here](https://www.confluent.io/blog/how-choose-number-topics-partitions-kafka-cluster)
-* One potential concern of mine is that the sliding window which finds malicious IP resides completely in the python streaming app and thus in memory. So memory of a node may become a concern if a single node has hundreds of thousands of logs and a long time window. Fixes to this would be keep the time window short - 30s to a minute, or just scale across more nodes to use more memory.
-* The data persistance side of things should scale fine horizontally - it's a write heavy system, so consistancy can take a back burner to volume of data. MongoDB can [shard](https://docs.mongodb.com/manual/sharding) - one of the important considerations in doing so is the sharding key. Given the uniqueness and diferences of IP address string, I'd be inclined to use them as the shard key (perhaps hash them as well).
+* One potential concern of mine is that the sliding window which finds malicious IP resides completely in the python streaming app and thus in memory. So memory of a node may become a concern if a single node has hundreds of thousands of logs and a long time window. Fixes to this would be keep the time window short - 30s to 1 minute, or just scale across more nodes to use more memory.
+* The data persistance side of things should scale fine horizontally - it's a write heavy system, so consistancy can take a back burner to volume of data. MongoDB can [shard](https://docs.mongodb.com/manual/sharding) - one of the important considerations in doing so is the sharding key. Given the uniqueness and diferences of IP address string, I'd be inclined to use that as the shard key (perhaps hash them as well).
 
 ## Lessons Learned / Questions Remaining / Stuff I didn't know
 I love these sort of explorations because I always do lots of stuff wrong, and therefore learn a ton. Some of my lessons learned from building this system:
