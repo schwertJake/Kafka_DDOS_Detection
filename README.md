@@ -3,7 +3,7 @@
 This is a Proof of Concept software for detecting DDOS attacks on an apache web server via real time log analysis. Using Kafka as a messaging platform and python microservices as streaming applications, this system is able to effectively find malicious IP address in realtime.
 
 ## POC Architecture
-Because this was coded up in very short time, the POC architecture is a stripped back version of what I would suggest for a production system (more on that later). The data pipeline is diagrammed below:
+Because this was coded up in a very short time, the POC architecture is a stripped back version of what I would suggest for a production system (more on that later). The data pipeline is diagrammed below:
 
 ![alt text](https://raw.githubusercontent.com/schwertJake/Kafka_DDOS_Detection/master/images/poc_architecture.png "")
 
@@ -17,7 +17,7 @@ To better explain the diagram, objects are color coded as follows
 
 So at a top level, the following happens:
 
-1. A raw log line from apache web server (or example text file in this case) enters kafka at the `logs.raw` topic
+1. A raw log line from an apache web server (or example text file in this case) enters kafka at the `logs.raw` topic
 2. That raw log (one long string) is parsed into a useful JSON object containing the IP, Timestamp, Resource Requested, and lots of other interesting information, and is publised to the `logs.parse` kafka topic
 3. The parsed logs now enter the DDOS detection specific stream applications. The first one trim's down that JSON document to just the IP address and the timestamp, then publishes it to the `logs.trim` kafka topic.
 4. These messages containing just the IP address and timestamp are entered into a sliding window where only timestamps in the last <user defined time> exist. If the count of timestamps within the window are greater than <user defined threshold>, the IP is considered overactive and malicious, and is published to a `logs.blacklist` topic for further use
@@ -90,7 +90,7 @@ All of the tech is already built to be scalable, yay! No SQL servers to migrate 
         <IP_Addr>: ([timestamp1, timestamp2, ...], count)
     }
     ```
-    * So, it is vitally important that IP addresses are consistantly mapped to the same node. This is a potential problem because if, for example:
+    * So, it is vitally important that IP addresses are consistantly mapped to the same node. This is a potential problem because, for example:
         * IP address 127.0.0.1 has accessed the site 10 times in the last minute, which is your threshold for blacklisting the IP.
         * But, both node 1 and node 2 have a sliding window streaming app that recieve some messages regarding 127.0.0.1
         * This means that neither have recieved all of the requests for 127.0.0.1, so neither have counted 10 requests and thus 127.0.0.1 is not blacklisted
@@ -104,12 +104,12 @@ All of the tech is already built to be scalable, yay! No SQL servers to migrate 
 ## Lessons Learned / Questions Remaining / Stuff I didn't know
 I love these sort of explorations because I always do lots of stuff wrong, and therefore learn a ton. Some of my lessons learned from building this system:
 * Metric aggregation architecture
-    * Is important but tough to impliment correctly. I'm still not sure if making seperate microservice apps just to collect metrics (or persist them to a DB in production) is the best architecture. It felt life a lot of ctr+c, ctrl+v, but I'm not totally sure how I'd set it up differently. Perhaps inheritance? Or one metrics consumer for multiple topics?
+    * Is important but tough to impliment correctly. I'm still not sure if making seperate microservice apps just to collect metrics (or persist them to a DB in production) is the best architecture. It felt like a lot of ctr+c, ctrl+v, but I'm not totally sure how I'd set it up differently. Perhaps inheritance? Or one metrics consumer for multiple topics?
 * Measuring the speed of services - I tried a couple things, none of which worked to my satisfaction:
     * On first implimentation, I recorded the 'cycle' time to process a single message, and then appended that to a list to later calculate the average and send as a throughput/speed metric. Maintaining these lists hogs memory somewhat needlessly.
     * In chasing performance (and memory utilization), I switched that to measuring how long it took to process X messages (1000, 10000, etc) and then diving that by the count of messages processed as a throughput metric. This sounded great at first, and works fine if the kafka pipeline is not empty (the streaming apps can't keep up), but if traffic slows down, this metric looses validity.
-        * Another frustrating side effect of this system was for the final records that totaled < METRIC_CYCLE, the packet was never sent and so the metrics weren't complete. 
-        * Also, I was reminded that the [average or averages is not the average](https://lemire.me/blog/2005/10/28/average-of-averages-is-not-the-average/), so these metrics weren't all that useful anyways.
+        * Another frustrating side effect of this system was for the final records that totaled < METRIC_CYCLE, the message was never sent and so the metrics weren't complete. 
+        * Also, I was reminded that the [average of averages is not the average](https://lemire.me/blog/2005/10/28/average-of-averages-is-not-the-average/), so these metrics weren't all that useful anyways.
     * I tinkered further, with memory utilization and averages in the back of my mind. This time, having the streaming apps send the elapsed time that every single record took. The metric app summed them up, and calculated an average at the very end. This fixed both of those issues, but effectively double my kafka load. So after trying this on with ingestion and parse metrics but not trim and sliding windows, I got the following result:
     ![alt text](https://raw.githubusercontent.com/schwertJake/Kafka_DDOS_Detection/master/images/metric_experiment.PNG "")
     * So in reality, the metric shows that the parse streaming app was faster than we thought - **but**, all this metric messaging was slowing the rest of the system down!
