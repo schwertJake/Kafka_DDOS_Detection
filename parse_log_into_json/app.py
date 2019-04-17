@@ -83,15 +83,11 @@ if __name__ == '__main__':
         bootstrap_servers=KAFKA_BROKER_URL,
         value_serializer=lambda value: json.dumps(value).encode(),
     )
-
     count = 0
-    errors = 0
-    start = time.time()
-
     for message in consumer:
 
-        # Metric Increments
-        count += 1
+        errors = 0
+        start = time.time()
 
         # Transform and Publish Data
         transformed_data: dict = \
@@ -99,17 +95,13 @@ if __name__ == '__main__':
         if transformed_data != {} and transformed_data["Time"] != 0:
             producer.send(TO_TOPIC, value=transformed_data)
         else:
-            errors += 1
+            errors = 1
+        elapsed_t = time.time() - start
 
         # Metric Aggregation
-        if count >= int(METRIC_CYCLE):
-            metrics = {
-                "processed_per_second": count/(time.time() - start),
-                "records_processed": count,
-                "errors": errors,
-                "end_ts": time.time()
-            }
-            producer.send(METRIC_TOPIC, value=metrics)
-            count = 0
-            errors = 0
-            start = time.time()
+        metrics = {
+            "processed_per_second": elapsed_t,
+            "records_processed": 1,
+            "errors": errors,
+        }
+        producer.send(METRIC_TOPIC, value=metrics)

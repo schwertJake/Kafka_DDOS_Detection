@@ -12,7 +12,7 @@ if __name__ == '__main__':
         FROM_TOPIC,
         bootstrap_servers=KAFKA_BROKER_URL,
         value_deserializer=lambda value: json.loads(value),
-        consumer_timeout_ms=60000
+        consumer_timeout_ms=100000
     )
 
     # Consumer metrics from kafka topic

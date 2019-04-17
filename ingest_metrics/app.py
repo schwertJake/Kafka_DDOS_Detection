@@ -5,14 +5,11 @@ from kafka import KafkaConsumer
 KAFKA_BROKER_URL = os.environ.get('KAFKA_BROKER_URL')
 METRIC_TOPIC = os.environ.get("METRIC_TOPIC")
 
-metric_agg = {
-    "processed_per_second": [],
-    "records_processed": [],
-    "end_ts": []
-}
+process_time_sum = 0
+records_processed = 0
 
 
-def aggregate_stats(agg_dict: dict):
+def aggregate_stats():
     """
     Aggregates list of metrics into sums and averages
     to give overall performance of microservice.
@@ -22,18 +19,16 @@ def aggregate_stats(agg_dict: dict):
       "Avg_Records_Per_Second": float
     }
 
-    :param agg_dict: aggregate dict of lists
     :return: dict of form above
     """
     # If data is empty, don't do anything:
-    if agg_dict["processed_per_second"] == []:
+    if process_time_sum == 0:
         return {}
 
     return {
-        "Records_Processed": sum(agg_dict["records_processed"]),
+        "Records_Processed": records_processed,
         "Avg_Records_Per_Second":
-            sum(agg_dict["processed_per_second"])/
-             len(agg_dict["processed_per_second"]),
+            records_processed / process_time_sum,
     }
 
 
@@ -48,12 +43,12 @@ if __name__ == '__main__':
     # Consumer metrics from kafka topic
     # and add to metric_agg dict of lists
     for message in consumer:
-        for key, val in message.value.items():
-            metric_agg[key].append(val)
+        process_time_sum += message.value["process_time"]
+        records_processed += message.value["records_processed"]
 
     # When we're done, aggregate results
     # And print off metrics
-    result = aggregate_stats(metric_agg)
+    result = aggregate_stats()
     print("INGESTION METRICS")
     for key, val in result.items():
         print(key, ":", val)
